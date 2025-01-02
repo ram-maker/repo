@@ -53,6 +53,12 @@ fn main() {
                         .required(true),
                 ),
         )
+        .arg(
+            Arg::new("subdir")
+                .value_name("SUBDIR")
+                .help("Subdirectory inside ~/repo to cd into")
+                .index(1),
+        )
         .get_matches();
 
     if let Some(_) = matches.subcommand_matches("init") {
@@ -69,8 +75,10 @@ fn main() {
     } else if let Some(matches) = matches.subcommand_matches("remove") {
         let path = matches.get_one::<String>("path").unwrap();
         remove_directory(path);
+    } else if let Some(subdir) = matches.get_one::<String>("subdir") {
+        cd_to_subdirectory(subdir);
     } else {
-        println!("No command provided. Use 'repo init', 'repo add', 'repo list', 'repo home', or 'repo remove'.");
+        println!("No command provided. Use 'repo init', 'repo add', 'repo list', 'repo home', 'repo remove', or 'repo <subdir>'.");
     }
 }
 
@@ -227,5 +235,36 @@ fn remove_directory(path: &str) {
             eprintln!("Failed to remove directory {:?}: {}", target_dir, e);
             exit(1);
         }
+    }
+}
+
+fn cd_to_subdirectory(subdir: &str) {
+    let repo_dir = home_dir().unwrap().join("repo");
+
+    // Check if the repo directory exists
+    if !repo_dir.exists() {
+        eprintln!("Repo directory does not exist. Run 'repo init' first.");
+        exit(1);
+    }
+
+    // Get the full path to the subdirectory
+    let subdir_path = repo_dir.join(subdir);
+
+    // Check if the subdirectory exists
+    if !subdir_path.exists() {
+        eprintln!("Subdirectory does not exist: {:?}", subdir_path);
+        exit(1);
+    }
+
+    // Start a new shell with the working directory set to the subdirectory
+    let status = Command::new("bash")
+        .current_dir(&subdir_path) // Set the working directory to the subdirectory
+        .status() // Start the shell
+        .expect("Failed to start shell");
+
+    // Check the exit status of the shell
+    if !status.success() {
+        eprintln!("Shell exited with an error.");
+        exit(1);
     }
 }
