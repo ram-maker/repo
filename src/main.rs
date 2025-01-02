@@ -14,27 +14,41 @@ fn main() {
         )
         .subcommand(
             Command::new("add")
-                .about("Adds a subdirectory inside ~/repo")
+                .about("Adds a new directory inside ~/repo or a specified parent directory")
                 .arg(
                     Arg::new("name")
                         .value_name("NAME")
-                        .help("Name of the new subdirectory to add")
+                        .help("Name of the new directory to add")
                         .required(true),
+                )
+                .arg(
+                    Arg::new("parent")
+                        .short('p')
+                        .long("parent")
+                        .value_name("PARENT")
+                        .help("Parent directory inside ~/repo where the new directory should be created"),
                 ),
         )
         .subcommand(
             Command::new("list")
-                .about("Lists all subdirectories inside ~/repo"),
+                .about("Lists all subdirectories inside ~/repo or a specified subdirectory")
+                .arg(
+                    Arg::new("subdir")
+                        .value_name("SUBDIR")
+                        .help("Subdirectory inside ~/repo to list"),
+                ),
         )
         .get_matches();
 
     if let Some(_) = matches.subcommand_matches("init") {
         init_repo();
     } else if let Some(matches) = matches.subcommand_matches("add") {
-        let subdir_name = matches.get_one::<String>("name").unwrap();
-        add_subdirectory(subdir_name);
-    } else if let Some(_) = matches.subcommand_matches("list") {
-        list_subdirectories();
+        let dir_name = matches.get_one::<String>("name").unwrap();
+        let parent_dir = matches.get_one::<String>("parent").map(|s| s.as_str());
+        add_directory(dir_name, parent_dir);
+    } else if let Some(matches) = matches.subcommand_matches("list") {
+        let subdir = matches.get_one::<String>("subdir").map(|s| s.as_str());
+        list_directories(subdir);
     } else {
         println!("No command provided. Use 'repo init', 'repo add', or 'repo list'.");
     }
@@ -57,9 +71,22 @@ fn init_repo() {
             exit(1);
         }
     }
+
+    // Create default subdirectories
+    let subdirs = ["client", "test", "practice"];
+    for subdir in subdirs.iter() {
+        let subdir_path = repo_dir.join(subdir);
+        match fs::create_dir(&subdir_path) {
+            Ok(_) => println!("Created subdirectory: {:?}", subdir_path),
+            Err(e) => {
+                eprintln!("Failed to create subdirectory {:?}: {}", subdir_path, e);
+                exit(1);
+            }
+        }
+    }
 }
 
-fn add_subdirectory(subdir_name: &str) {
+fn add_directory(dir_name: &str, parent_dir: Option<&str>) {
     let repo_dir = dirs::home_dir().unwrap().join("repo");
 
     // Check if the repo directory exists
@@ -68,20 +95,32 @@ fn add_subdirectory(subdir_name: &str) {
         exit(1);
     }
 
-    // Get the full path to the new subdirectory
-    let new_subdir_path = repo_dir.join(subdir_name);
+    // Determine the parent directory
+    let parent_dir_path = match parent_dir {
+        Some(parent) => repo_dir.join(parent),
+        None => repo_dir.clone(),
+    };
 
-    // Create the new subdirectory
-    match fs::create_dir(&new_subdir_path) {
-        Ok(_) => println!("Created subdirectory: {:?}", new_subdir_path),
+    // Check if the parent directory exists
+    if !parent_dir_path.exists() {
+        eprintln!("Parent directory does not exist: {:?}", parent_dir_path);
+        exit(1);
+    }
+
+    // Get the full path to the new directory
+    let new_dir_path = parent_dir_path.join(dir_name);
+
+    // Create the new directory
+    match fs::create_dir(&new_dir_path) {
+        Ok(_) => println!("Created directory: {:?}", new_dir_path),
         Err(e) => {
-            eprintln!("Failed to create subdirectory {:?}: {}", new_subdir_path, e);
+            eprintln!("Failed to create directory {:?}: {}", new_dir_path, e);
             exit(1);
         }
     }
 }
 
-fn list_subdirectories() {
+fn list_directories(subdir: Option<&str>) {
     let repo_dir = dirs::home_dir().unwrap().join("repo");
 
     // Check if the repo directory exists
@@ -90,8 +129,20 @@ fn list_subdirectories() {
         exit(1);
     }
 
-    // Read the contents of the repo directory
-    match fs::read_dir(&repo_dir) {
+    // Determine the directory to list
+    let target_dir = match subdir {
+        Some(subdir) => repo_dir.join(subdir),
+        None => repo_dir.clone(),
+    };
+
+    // Check if the target directory exists
+    if !target_dir.exists() {
+        eprintln!("Directory does not exist: {:?}", target_dir);
+        exit(1);
+    }
+
+    // Read the contents of the target directory
+    match fs::read_dir(&target_dir) {
         Ok(entries) => {
             for entry in entries {
                 if let Ok(entry) = entry {
@@ -103,7 +154,7 @@ fn list_subdirectories() {
             }
         }
         Err(e) => {
-            eprintln!("Failed to read repo directory: {}", e);
+            eprintln!("Failed to read directory {:?}: {}", target_dir, e);
             exit(1);
         }
     }
