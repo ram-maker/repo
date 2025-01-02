@@ -1,19 +1,20 @@
-use clap::{Arg, Command};
+use clap::{Arg, Command as ClapCommand}; // Rename `clap::Command` to `ClapCommand`
 use std::fs;
 use std::path::Path;
-use std::process::exit;
+use std::process::{Command, exit}; // Keep `std::process::Command` as `Command`
+use dirs::home_dir;
 
 fn main() {
-    let matches = Command::new("repo")
+    let matches = ClapCommand::new("repo") // Use `ClapCommand` here
         .version("1.0")
         .author("Your Name <your.email@example.com>")
         .about("A CLI tool for automating workflows")
         .subcommand(
-            Command::new("init")
+            ClapCommand::new("init") // Use `ClapCommand` here
                 .about("Initializes the repo directory at ~/repo"),
         )
         .subcommand(
-            Command::new("add")
+            ClapCommand::new("add") // Use `ClapCommand` here
                 .about("Adds a new directory inside ~/repo or a specified parent directory")
                 .arg(
                     Arg::new("name")
@@ -30,13 +31,17 @@ fn main() {
                 ),
         )
         .subcommand(
-            Command::new("list")
+            ClapCommand::new("list") // Use `ClapCommand` here
                 .about("Lists all subdirectories inside ~/repo or a specified subdirectory")
                 .arg(
                     Arg::new("subdir")
                         .value_name("SUBDIR")
                         .help("Subdirectory inside ~/repo to list"),
                 ),
+        )
+        .subcommand(
+            ClapCommand::new("home") // Use `ClapCommand` here
+                .about("Starts a new shell with the working directory set to ~/repo"),
         )
         .get_matches();
 
@@ -49,13 +54,15 @@ fn main() {
     } else if let Some(matches) = matches.subcommand_matches("list") {
         let subdir = matches.get_one::<String>("subdir").map(|s| s.as_str());
         list_directories(subdir);
+    } else if let Some(_) = matches.subcommand_matches("home") {
+        repo_home();
     } else {
-        println!("No command provided. Use 'repo init', 'repo add', or 'repo list'.");
+        println!("No command provided. Use 'repo init', 'repo add', 'repo list', or 'repo home'.");
     }
 }
 
 fn init_repo() {
-    let repo_dir = dirs::home_dir().unwrap().join("repo");
+    let repo_dir = home_dir().unwrap().join("repo");
 
     // Check if the repo directory already exists
     if repo_dir.exists() {
@@ -87,7 +94,7 @@ fn init_repo() {
 }
 
 fn add_directory(dir_name: &str, parent_dir: Option<&str>) {
-    let repo_dir = dirs::home_dir().unwrap().join("repo");
+    let repo_dir = home_dir().unwrap().join("repo");
 
     // Check if the repo directory exists
     if !repo_dir.exists() {
@@ -121,7 +128,7 @@ fn add_directory(dir_name: &str, parent_dir: Option<&str>) {
 }
 
 fn list_directories(subdir: Option<&str>) {
-    let repo_dir = dirs::home_dir().unwrap().join("repo");
+    let repo_dir = home_dir().unwrap().join("repo");
 
     // Check if the repo directory exists
     if !repo_dir.exists() {
@@ -157,5 +164,27 @@ fn list_directories(subdir: Option<&str>) {
             eprintln!("Failed to read directory {:?}: {}", target_dir, e);
             exit(1);
         }
+    }
+}
+
+fn repo_home() {
+    let repo_dir = home_dir().unwrap().join("repo");
+
+    // Check if the repo directory exists
+    if !repo_dir.exists() {
+        eprintln!("Repo directory does not exist. Run 'repo init' first.");
+        exit(1);
+    }
+
+    // Start a new shell with the working directory set to ~/repo
+    let status = Command::new("bash")
+        .current_dir(&repo_dir) // Set the working directory to ~/repo
+        .status() // Start the shell
+        .expect("Failed to start shell");
+
+    // Check the exit status of the shell
+    if !status.success() {
+        eprintln!("Shell exited with an error.");
+        exit(1);
     }
 }
