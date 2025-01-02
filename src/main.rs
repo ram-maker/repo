@@ -1,20 +1,20 @@
-use clap::{Arg, Command as ClapCommand}; // Rename `clap::Command` to `ClapCommand`
+use clap::{Arg, Command as ClapCommand};
 use std::fs;
 use std::path::Path;
-use std::process::{Command, exit}; // Keep `std::process::Command` as `Command`
+use std::process::{Command, exit};
 use dirs::home_dir;
 
 fn main() {
-    let matches = ClapCommand::new("repo") // Use `ClapCommand` here
+    let matches = ClapCommand::new("repo")
         .version("1.0")
         .author("Your Name <your.email@example.com>")
         .about("A CLI tool for automating workflows")
         .subcommand(
-            ClapCommand::new("init") // Use `ClapCommand` here
+            ClapCommand::new("init")
                 .about("Initializes the repo directory at ~/repo"),
         )
         .subcommand(
-            ClapCommand::new("add") // Use `ClapCommand` here
+            ClapCommand::new("add")
                 .about("Adds a new directory inside ~/repo or a specified parent directory")
                 .arg(
                     Arg::new("name")
@@ -31,7 +31,7 @@ fn main() {
                 ),
         )
         .subcommand(
-            ClapCommand::new("list") // Use `ClapCommand` here
+            ClapCommand::new("list")
                 .about("Lists all subdirectories inside ~/repo or a specified subdirectory")
                 .arg(
                     Arg::new("subdir")
@@ -40,8 +40,18 @@ fn main() {
                 ),
         )
         .subcommand(
-            ClapCommand::new("home") // Use `ClapCommand` here
+            ClapCommand::new("home")
                 .about("Starts a new shell with the working directory set to ~/repo"),
+        )
+        .subcommand(
+            ClapCommand::new("remove")
+                .about("Removes a directory from ~/repo or its subdirectories")
+                .arg(
+                    Arg::new("path")
+                        .value_name("PATH")
+                        .help("Path to the directory to remove (relative to ~/repo)")
+                        .required(true),
+                ),
         )
         .get_matches();
 
@@ -56,8 +66,11 @@ fn main() {
         list_directories(subdir);
     } else if let Some(_) = matches.subcommand_matches("home") {
         repo_home();
+    } else if let Some(matches) = matches.subcommand_matches("remove") {
+        let path = matches.get_one::<String>("path").unwrap();
+        remove_directory(path);
     } else {
-        println!("No command provided. Use 'repo init', 'repo add', 'repo list', or 'repo home'.");
+        println!("No command provided. Use 'repo init', 'repo add', 'repo list', 'repo home', or 'repo remove'.");
     }
 }
 
@@ -186,5 +199,33 @@ fn repo_home() {
     if !status.success() {
         eprintln!("Shell exited with an error.");
         exit(1);
+    }
+}
+
+fn remove_directory(path: &str) {
+    let repo_dir = home_dir().unwrap().join("repo");
+
+    // Check if the repo directory exists
+    if !repo_dir.exists() {
+        eprintln!("Repo directory does not exist. Run 'repo init' first.");
+        exit(1);
+    }
+
+    // Get the full path to the directory to remove
+    let target_dir = repo_dir.join(path);
+
+    // Check if the target directory exists
+    if !target_dir.exists() {
+        eprintln!("Directory does not exist: {:?}", target_dir);
+        exit(1);
+    }
+
+    // Remove the directory recursively
+    match fs::remove_dir_all(&target_dir) {
+        Ok(_) => println!("Removed directory: {:?}", target_dir),
+        Err(e) => {
+            eprintln!("Failed to remove directory {:?}: {}", target_dir, e);
+            exit(1);
+        }
     }
 }
